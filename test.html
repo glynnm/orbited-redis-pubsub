@@ -1,0 +1,87 @@
+<html>
+ <head>
+  <script>document.domain = document.domain</script>
+  <script src="orbited/Orbited.js"></script>
+  <script>TCPSocket = Orbited.TCPSocket</script>
+  <script>
+    function print(s) {
+       output = document.getElementById("shell")
+       while (s.indexOf('\n') > -1) {
+            s = s.replace('\n', '<br>')
+        }
+        output.innerHTML += s + "<br>"
+       output.scrollTop = self.output.scrollHeight
+    }
+    if (typeof(console) == "undefined")
+       console = { log: print}
+
+    var tcp = new TCPSocket()
+    tcp.open('localhost', 6379, false)//connUrl.render())
+    tcp.onopen = function() {
+        print("Connection opened");
+    }
+    tcp.onread = function(s) { 
+      var msg = [];
+      var i = 0;
+      while (i < s.length) {
+        var end = s.indexOf('\r\n', i)
+        if (s[i] === "$")
+        {
+          var length = Number(s.substring(i+1, end));
+          i = end + 2;
+          end = i + length;
+          var data  = s.substring(i, end);
+          console.log( length + ": " + data );
+          msg.push(data);
+        }
+        i = end + 2;
+      }
+      switch (msg[0]) {
+        case "subscribe":
+        case "unsubscribe":
+          break;
+        case "message":
+          print(msg[1] + ": " + msg[2]);
+      }
+    }
+    tcp.onclose = function(code) { 
+        print("Connection closed " + code); 
+    }
+
+    /** first argument is redis cmd followed by parameters */
+    function send() {
+      var msg = [];
+      msg.push("*")
+      msg.push(arguments.length);
+      msg.push("\r\n");
+      for (var i = 0; i < arguments.length; i++)
+      {
+        var p = arguments[i];
+        msg.push("$");
+        msg.push(p.length);
+        msg.push("\r\n");
+        msg.push(p);
+        msg.push("\r\n");
+      }
+      console.log( msg.join('') );
+      tcp.send( msg.join('') );
+    }
+
+   function subscribe() {
+        if (tcp.readyState < 3)
+            print("ERR: Not Connected")
+        else if (tcp.readyState > 3 ) {
+            print("ERR: Disconnect(ed)(ing)")
+        }
+        else {
+            var chan = document.getElementById("data").value
+            send( 'subscribe', chan );
+        }
+   }
+  </script>
+ </head>
+ <body>
+  <input type=text id=data> <button onClick="subscribe()">send</button><br>
+  <div style="border: 1px solid black; height: 200px; overflow-y: scroll" id="shell"></div>
+ </body>
+</html>
